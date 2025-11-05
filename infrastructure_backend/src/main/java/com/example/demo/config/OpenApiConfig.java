@@ -25,6 +25,7 @@ public class OpenApiConfig {
                         .contact(new Contact().name("UPSTDC").email("support@upstdc.example")))
                 .addTagsItem(new Tag().name("Authentication").description("Auth endpoints"))
                 .addTagsItem(new Tag().name("Users").description("User management"))
+                .addTagsItem(new Tag().name("Projects").description("Projects CRUD with pagination"))
                 .externalDocs(new ExternalDocumentation()
                         .description("Swagger UI")
                         .url("/swagger"));

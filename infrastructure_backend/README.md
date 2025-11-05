@@ -20,10 +20,17 @@ Dev specifics:
 - server.port=5001
 - spring.jpa.show-sql=true for development
 
+Database:
+- Uses PostgreSQL with JDBC driver.
+- In dev/prod, provide DB_URL or POSTGRES_* env vars. The app listens on port 5001.
+
 Flyway:
 - Enabled by default.
 - Locations: classpath:db/migration and sibling ../infrastructure_database/db/migration for shared migrations.
-- Ensure the infrastructure_database container repo exists adjacent to this backend for filesystem migrations to be picked up.
+- Ensure the infrastructure_database container repo exists adjacent to this backend for filesystem migrations to be picked up:
+  - Backend path: uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend
+  - Database path: uttar-pradesh-tourism-infrastructure-management-system-40508-40519/infrastructure_database
+  - Shared migrations directory expected at: ../infrastructure_database/db/migration
 
 Auth:
 - POST /api/auth/register
@@ -45,3 +52,16 @@ Frontend integration:
 - Projects APIs (examples):
   - GET /api/projects
   - POST /api/projects
+
+Quickstart (dev):
+1) Ensure PostgreSQL is reachable and export:
+   - POSTGRES_HOST=localhost
+   - POSTGRES_PORT=5432
+   - POSTGRES_DB=upstdc_dev
+   - POSTGRES_USER=postgres
+   - POSTGRES_PASSWORD=postgres
+   - SPRING_PROFILES_ACTIVE=dev
+   - JWT_SECRET=<min 32 bytes secret, e.g., use `openssl rand -hex 32`>
+2) From infrastructure_backend: mvn spring-boot:run
+3) Open http://localhost:5001/swagger
+4) Default dev admin is seeded (username: admin, password: admin123). Change in prod.

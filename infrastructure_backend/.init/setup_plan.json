@@ -1,0 +1,221 @@
+{
+  "container_info": {
+    "container_name": "infrastructure_backend",
+    "container_type": "backend",
+    "framework": "spring",
+    "platform": "backend",
+    "description": "A web application for Uttar Pradesh Tourism (UPSTDC) to monitor infrastructure projects with modules for user management, project creation, tender & contractor management, fund and milestone tracking, project progress with geo-tagging, inspection & handover, payment management, reporting, training, and support. Includes role-based access, EDR and SSL security, and a modern, responsive UI.",
+    "workspace": "/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend",
+    "reasoning": "The provided Framework field explicitly specifies 'spring' and the container is named 'infrastructure_backend' with backend-type services preinstalled. Spring (Spring Boot) is an appropriate server-side framework for building REST APIs, role-based access, security (EDR/SSL), and integrations with databases and background workers \u2014 matching the application's backend responsibilities for project/tender management, payments, reporting and geo-tagging.",
+    "alternative_frameworks": [
+      "spring-boot",
+      "express",
+      "django",
+      "fastapi",
+      ".NET (ASP.NET Core)"
+    ],
+    "requirements": [
+      "OpenJDK 17 or 21 (JDK runtime required by Spring; choose the project target JVM version)",
+      "Maven or Gradle (build tool used by the Spring project; include only one as required)",
+      "git (for source checkout)",
+      "curl/wget (basic network utilities)",
+      "Minimal environment variables: JAVA_HOME, PATH updated to include JDK and build tool",
+      "Application code (source) mounted into container workspace",
+      "Expose development port (e.g., 8080) for the Spring Boot dev server",
+      "Lightweight embedded DB for local headless runs: H2 (in-memory) configured for tests/development instead of PostgreSQL/MySQL",
+      "Minimal test runner: JUnit (configured in build tool) for basic validation",
+      "Basic logging to console only (no external logging agents); configure logback/simple logging in dev profile",
+      "Optional: Docker-friendly JVM options (e.g., -Xmx512m) for headless container resource limits"
+    ],
+    "dockerfile_summary": "OS: Ubuntu 24.04 (Debian family), Package Manager: apt-get, Sudo: Present (NOPASSWD), Preinstalled: git, curl, wget, python3, python3-pip, nodejs, npm, build-essential, postgresql, mysql-server, mongodb-org, redis-server, dotnet-sdk-8.0, uvicorn, celery, redis, requests, beautifulsoup4, sphinx, mkdocs, pylint, flask, awscli, boto3, yarn, typescript, @vue/cli, @angular/cli, create-react-app, express-generator, nodemon, pm2, eslint, prettier, webpack, jest"
+  },
+  "steps": [
+    {
+      "id": "step_env_install",
+      "name": "Environment setup: detect/install JDK & Maven, persist env atomically",
+      "description": "Detect existing Java (major >=17) and Maven on PATH and install missing components using apt non-interactively only when absent. Compute JAVA_HOME and MAVEN_HOME from resolved binaries, validate numeric major Java version (>=17), and write an idempotent /etc/profile.d/java_maven.sh atomically with correct PATH quoting and permissions (0644). Ensure workspace exists. Skip reinstall of preinstalled tools (unzip, git, curl, wget) when present.",
+      "category": "environment",
+      "script_name": "install",
+      "dependencies": [],
+      "tools_required": [
+        "VisibleShellTools",
+        "ContainerFileTools",
+        "DependencyTools",
+        "ContainerWriteTools"
+      ],
+      "status": "completed",
+      "execution_priority": 1,
+      "privilege_level": "auto",
+      "retry_attempts": 0,
+      "script_code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\nexport DEBIAN_FRONTEND=noninteractive\n# helper\nhas() { command -v \"$1\" >/dev/null 2>&1; }\n# Detect tools\nJAVA_BIN=$(command -v java || true)\nMAVEN_BIN=$(command -v mvn || true)\nUNZIP_BIN=$(command -v unzip || true)\nTO_INSTALL=()\nif [ -z \"$JAVA_BIN\" ]; then TO_INSTALL+=(openjdk-17-jdk); fi\nif [ -z \"$MAVEN_BIN\" ]; then TO_INSTALL+=(maven); fi\nif [ -z \"$UNZIP_BIN\" ]; then TO_INSTALL+=(unzip); fi\nif [ ${#TO_INSTALL[@]} -gt 0 ]; then sudo apt-get update -qq >/dev/null && sudo apt-get install -y --no-install-recommends \"${TO_INSTALL[@]}\" >/dev/null; fi\n# Re-evaluate\nJAVA_BIN=$(command -v java || true)\nMAVEN_BIN=$(command -v mvn || true)\nif [ -z \"$JAVA_BIN\" ]; then echo \"ERROR: java not found; install OpenJDK 17+\" >&2; exit 2; fi\nif [ -z \"$MAVEN_BIN\" ]; then echo \"ERROR: mvn not found; install maven\" >&2; exit 3; fi\nJAVA_BIN=$(readlink -f \"$(command -v java)\")\nMAVEN_BIN=$(readlink -f \"$(command -v mvn)\")\nJAVA_HOME=$(dirname \"$(dirname \"$JAVA_BIN\")\")\nMAVEN_HOME=$(dirname \"$(dirname \"$MAVEN_BIN\")\")\n# Extract numeric major\nJAVA_VER_RAW=$(java -version 2>&1 | awk -F '\"' '/version/ {print $2; exit}' || true)\nif [ -z \"$JAVA_VER_RAW\" ]; then JAVA_VER_RAW=$(javac -version 2>&1 | awk '{print $2}' || true); fi\nJAVA_MAJOR=$(printf '%s' \"$JAVA_VER_RAW\" | sed -E 's/^([0-9]+).*/\\1/')\nif ! printf '%s' \"$JAVA_MAJOR\" | grep -Eq '^[0-9]+$'; then echo \"ERROR: unexpected java version string: $JAVA_VER_RAW\" >&2; exit 4; fi\nif [ \"$JAVA_MAJOR\" -lt 17 ]; then echo \"ERROR: Java major version $JAVA_MAJOR < 17. Install OpenJDK 17+.\" >&2; exit 6; fi\n# Prepare profile content and write atomically via sudo tee\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nTMP_CONTENT=\"# Auto-generated by setup - exports for JAVA and MAVEN\n# JAVA_HOME set to detected JDK\nexport JAVA_HOME=\\\"$JAVA_HOME\\\"\nexport MAVEN_HOME=\\\"$MAVEN_HOME\\\"\nexport PATH=\\\"$JAVA_HOME/bin:$MAVEN_HOME/bin:$PATH\\\"\nexport JAVA_TOOL_OPTIONS=\\\"-Xmx512m\\\"\nexport MAVEN_OPTS=\\\"-Xmx512m\\\"\n\"\n# Only replace if different\necho \"$TMP_CONTENT\" | sudo tee /tmp/java_maven.sh.$$ >/dev/null\nif sudo [ -f \"$PROFILE\" ]; then\n  if ! sudo cmp -s /tmp/java_maven.sh.$$ \"$PROFILE\"; then sudo mv /tmp/java_maven.sh.$$ \"$PROFILE\"; else sudo rm -f /tmp/java_maven.sh.$$; fi\nelse\n  sudo mv /tmp/java_maven.sh.$$ \"$PROFILE\"\nfi\nsudo chmod 0644 \"$PROFILE\"\n# Ensure workspace exists\nmkdir -p \"$WORKSPACE\"\n# Source for immediate access in this session\n# shellcheck disable=SC1090\nif [ -r \"$PROFILE\" ]; then source \"$PROFILE\"; fi\n# Validate\njava -version >/dev/null 2>&1 || { echo \"ERROR: java not usable\" >&2; exit 8; }\nmvn -v >/dev/null 2>&1 || { echo \"ERROR: mvn not usable\" >&2; exit 9; }\nprintf 'Using JAVA_HOME=%s (version %s)\\n' \"$JAVA_HOME\" \"$JAVA_VER_RAW\"\nexit 0",
+      "output_scripts": [
+        {
+          "name": "install",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\nexport DEBIAN_FRONTEND=noninteractive\n# helper\nhas() { command -v \"$1\" >/dev/null 2>&1; }\n# Detect tools\nJAVA_BIN=$(command -v java || true)\nMAVEN_BIN=$(command -v mvn || true)\nUNZIP_BIN=$(command -v unzip || true)\nTO_INSTALL=()\nif [ -z \"$JAVA_BIN\" ]; then TO_INSTALL+=(openjdk-17-jdk); fi\nif [ -z \"$MAVEN_BIN\" ]; then TO_INSTALL+=(maven); fi\nif [ -z \"$UNZIP_BIN\" ]; then TO_INSTALL+=(unzip); fi\nif [ ${#TO_INSTALL[@]} -gt 0 ]; then sudo apt-get update -qq >/dev/null && sudo apt-get install -y --no-install-recommends \"${TO_INSTALL[@]}\" >/dev/null; fi\n# Re-evaluate\nJAVA_BIN=$(command -v java || true)\nMAVEN_BIN=$(command -v mvn || true)\nif [ -z \"$JAVA_BIN\" ]; then echo \"ERROR: java not found; install OpenJDK 17+\" >&2; exit 2; fi\nif [ -z \"$MAVEN_BIN\" ]; then echo \"ERROR: mvn not found; install maven\" >&2; exit 3; fi\nJAVA_BIN=$(readlink -f \"$(command -v java)\")\nMAVEN_BIN=$(readlink -f \"$(command -v mvn)\")\nJAVA_HOME=$(dirname \"$(dirname \"$JAVA_BIN\")\")\nMAVEN_HOME=$(dirname \"$(dirname \"$MAVEN_BIN\")\")\n# Extract numeric major\nJAVA_VER_RAW=$(java -version 2>&1 | awk -F '\"' '/version/ {print $2; exit}' || true)\nif [ -z \"$JAVA_VER_RAW\" ]; then JAVA_VER_RAW=$(javac -version 2>&1 | awk '{print $2}' || true); fi\nJAVA_MAJOR=$(printf '%s' \"$JAVA_VER_RAW\" | sed -E 's/^([0-9]+).*/\\1/')\nif ! printf '%s' \"$JAVA_MAJOR\" | grep -Eq '^[0-9]+$'; then echo \"ERROR: unexpected java version string: $JAVA_VER_RAW\" >&2; exit 4; fi\nif [ \"$JAVA_MAJOR\" -lt 17 ]; then echo \"ERROR: Java major version $JAVA_MAJOR < 17. Install OpenJDK 17+.\" >&2; exit 6; fi\n# Prepare profile content and write atomically via sudo tee\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nTMP_CONTENT=\"# Auto-generated by setup - exports for JAVA and MAVEN\\n# JAVA_HOME set to detected JDK\\nexport JAVA_HOME=\\\"$JAVA_HOME\\\"\\nexport MAVEN_HOME=\\\"$MAVEN_HOME\\\"\\nexport PATH=\\\"$JAVA_HOME/bin:$MAVEN_HOME/bin:$PATH\\\"\\nexport JAVA_TOOL_OPTIONS=\\\"-Xmx512m\\\"\\nexport MAVEN_OPTS=\\\"-Xmx512m\\\"\\n\"\n# Only replace if different\necho \"$TMP_CONTENT\" | sudo tee /tmp/java_maven.sh.$$ >/dev/null\nif sudo [ -f \"$PROFILE\" ]; then\n  if ! sudo cmp -s /tmp/java_maven.sh.$$ \"$PROFILE\"; then sudo mv /tmp/java_maven.sh.$$ \"$PROFILE\"; else sudo rm -f /tmp/java_maven.sh.$$; fi\nelse\n  sudo mv /tmp/java_maven.sh.$$ \"$PROFILE\"\nfi\nsudo chmod 0644 \"$PROFILE\"\n# Ensure workspace exists\nmkdir -p \"$WORKSPACE\"\n# Source for immediate access in this session\n# shellcheck disable=SC1090\nif [ -r \"$PROFILE\" ]; then source \"$PROFILE\"; fi\n# Validate\njava -version >/dev/null 2>&1 || { echo \"ERROR: java not usable\" >&2; exit 8; }\nmvn -v >/dev/null 2>&1 || { echo \"ERROR: mvn not usable\" >&2; exit 9; }\nprintf 'Using JAVA_HOME=%s (version %s)\\n' \"$JAVA_HOME\" \"$JAVA_VER_RAW\"\nexit 0\n"
+        }
+      ],
+      "summary": "Executed environment setup: detected existing Java (OpenJDK 17) and Maven, installed missing unzip only (other required tools were preinstalled). Computed JAVA_HOME and MAVEN_HOME, validated Java major version >=17, and atomically wrote /etc/profile.d/java_maven.sh with correct quoting and permissions (0644). Ensured workspace directory exists and sourced the profile for the current shell. Validations for java and mvn succeeded. Output printed the resolved JAVA_HOME and Java version.",
+      "architect_help_request": "",
+      "needs_architect_help": false,
+      "qa_approved": true,
+      "qa_summary": "Engineer reports successful detection of OpenJDK 17 and Maven, installed only missing unzip, computed and validated JAVA_HOME and MAVEN_HOME, atomically wrote /etc/profile.d/java_maven.sh with 0644 permissions, ensured workspace exists, sourced profile for current shell, and validated java and mvn on PATH. No errors or security issues were reported; core objective met.",
+      "qa_issues": []
+    },
+    {
+      "id": "step_scaffold_project",
+      "name": "Project scaffolding: minimal Spring Boot Maven project with Actuator, H2, JUnit",
+      "description": "If workspace lacks a pom.xml or .git, create a minimal Maven Spring Boot project (starter-web, actuator, H2 runtime, spring-boot-starter-test) and add spring-boot-maven-plugin to guarantee an executable fat jar. Adapt <java.version> to the installed JDK major version to avoid compile failures. Avoid duplicating actuator's health endpoint (no custom /health controller). Place dev profile (application-dev.properties) using H2 and console logback config.",
+      "category": "scaffolding",
+      "script_name": "scaffold",
+      "dependencies": [
+        "step_env_install"
+      ],
+      "tools_required": [
+        "VisibleShellTools",
+        "ContainerFileTools",
+        "DependencyTools",
+        "ContainerWriteTools"
+      ],
+      "status": "completed",
+      "execution_priority": 3,
+      "privilege_level": "auto",
+      "retry_attempts": 0,
+      "script_code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\ncd \"$WORKSPACE\"\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nif [ ! -r \"$PROFILE\" ]; then echo \"ERROR: $PROFILE missing, run install step first\" >&2; exit 2; fi\n# shellcheck disable=SC1090\nsource \"$PROFILE\"\n# If user code present (pom.xml or .git), skip scaffolding\nif [ -f pom.xml ] || [ -d .git ]; then exit 0; fi\nmkdir -p src/main/java/com/example/demo src/main/resources src/test/java/com/example/demo\n# Determine runtime java major\nJAVA_VER_RAW=$(java -version 2>&1 | awk -F '\"' '/version/ {print $2; exit}' || true)\nif [ -z \"$JAVA_VER_RAW\" ]; then JAVA_VER_RAW=$(javac -version 2>&1 | awk '{print $2}' || true); fi\nJAVA_MAJOR=$(printf '%s' \"$JAVA_VER_RAW\" | sed -E 's/^([0-9]+).*/\\1/')\nif ! printf '%s' \"$JAVA_MAJOR\" | grep -Eq '^[0-9]+$'; then JAVA_MAJOR=17; fi\n# Create pom with explicit spring-boot-maven-plugin\ncat > pom.xml <<POM\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>com.example</groupId>\n  <artifactId>infrastructure-backend</artifactId>\n  <version>0.0.1-SNAPSHOT</version>\n  <packaging>jar</packaging>\n  <parent>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-parent</artifactId>\n    <version>3.2.0</version>\n    <relativePath/>\n  </parent>\n  <properties>\n    <java.version>$JAVA_MAJOR</java.version>\n  </properties>\n  <dependencies>\n    <dependency>\n      <groupId>org.springframework.boot</groupId>\n      <artifactId>spring-boot-starter-web</artifactId>\n    </dependency>\n    <dependency>\n      <groupId>org.springframework.boot</groupId>\n      <artifactId>spring-boot-starter-actuator</artifactId>\n    </dependency>\n    <dependency>\n      <groupId>com.h2database</groupId>\n      <artifactId>h2</artifactId>\n      <scope>runtime</scope>\n    </dependency>\n    <dependency>\n      <groupId>org.springframework.boot</groupId>\n      <artifactId>spring-boot-starter-test</artifactId>\n      <scope>test</scope>\n    </dependency>\n  </dependencies>\n  <build>\n    <plugins>\n      <plugin>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-maven-plugin</artifactId>\n      </plugin>\n    </plugins>\n  </build>\n</project>\nPOM\n# Application\ncat > src/main/java/com/example/demo/DemoApplication.java <<'APP'\npackage com.example.demo;\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n@SpringBootApplication\npublic class DemoApplication {\n  public static void main(String[] args) { SpringApplication.run(DemoApplication.class, args); }\n}\nAPP\n# Provide a simple ping controller (avoid duplicating actuator /actuator/health)\ncat > src/main/java/com/example/demo/PingController.java <<'CTL'\npackage com.example.demo;\nimport org.springframework.web.bind.annotation.GetMapping;\nimport org.springframework.web.bind.annotation.RestController;\n@RestController\npublic class PingController {\n  @GetMapping(\"/ping\")\n  public String ping() { return \"pong\"; }\n}\nCTL\n# Dev profile using H2\ncat > src/main/resources/application-dev.properties <<'APPPR'\nspring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1\nspring.datasource.driverClassName=org.h2.Driver\nspring.jpa.hibernate.ddl-auto=update\nmanagement.endpoints.web.exposure.include=health\nlogging.level.root=INFO\nAPPPR\n# Console logging\ncat > src/main/resources/logback-spring.xml <<'LOG'\n<configuration>\n  <appender name=\"CONSOLE\" class=\"ch.qos.logback.core.ConsoleAppender\">\n    <encoder>\n      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>\n    </encoder>\n  </appender>\n  <root level=\"INFO\">\n    <appender-ref ref=\"CONSOLE\"/>\n  </root>\n</configuration>\nLOG\n# Minimal test\ncat > src/test/java/com/example/demo/DemoApplicationTests.java <<'TEST'\npackage com.example.demo;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\n@SpringBootTest\nclass DemoApplicationTests {\n  @Test\n  void contextLoads() {}\n}\nTEST\nexit 0",
+      "output_scripts": [
+        {
+          "name": "scaffold",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\ncd \"$WORKSPACE\"\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nif [ ! -r \"$PROFILE\" ]; then echo \"ERROR: $PROFILE missing, run install step first\" >&2; exit 2; fi\n# shellcheck disable=SC1090\nsource \"$PROFILE\"\n# If user code present (pom.xml or .git), skip scaffolding\nif [ -f pom.xml ] || [ -d .git ]; then exit 0; fi\nmkdir -p src/main/java/com/example/demo src/main/resources src/test/java/com/example/demo\n# Determine runtime java major\nJAVA_VER_RAW=$(java -version 2>&1 | awk -F '\"' '/version/ {print $2; exit}' || true)\nif [ -z \"$JAVA_VER_RAW\" ]; then JAVA_VER_RAW=$(javac -version 2>&1 | awk '{print $2}' || true); fi\nJAVA_MAJOR=$(printf '%s' \"$JAVA_VER_RAW\" | sed -E 's/^([0-9]+).*/\\1/')\nif ! printf '%s' \"$JAVA_MAJOR\" | grep -Eq '^[0-9]+$'; then JAVA_MAJOR=17; fi\n# Create pom with explicit spring-boot-maven-plugin\ncat > pom.xml <<POM\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>com.example</groupId>\n  <artifactId>infrastructure-backend</artifactId>\n  <version>0.0.1-SNAPSHOT</version>\n  <packaging>jar</packaging>\n  <parent>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-parent</artifactId>\n    <version>3.2.0</version>\n    <relativePath/>\n  </parent>\n  <properties>\n    <java.version>$JAVA_MAJOR</java.version>\n  </properties>\n  <dependencies>\n    <dependency>\n      <groupId>org.springframework.boot</groupId>\n      <artifactId>spring-boot-starter-web</artifactId>\n    </dependency>\n    <dependency>\n      <groupId>org.springframework.boot</groupId>\n      <artifactId>spring-boot-starter-actuator</artifactId>\n    </dependency>\n    <dependency>\n      <groupId>com.h2database</groupId>\n      <artifactId>h2</artifactId>\n      <scope>runtime</scope>\n    </dependency>\n    <dependency>\n      <groupId>org.springframework.boot</groupId>\n      <artifactId>spring-boot-starter-test</artifactId>\n      <scope>test</scope>\n    </dependency>\n  </dependencies>\n  <build>\n    <plugins>\n      <plugin>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-maven-plugin</artifactId>\n      </plugin>\n    </plugins>\n  </build>\n</project>\nPOM\n# Application\ncat > src/main/java/com/example/demo/DemoApplication.java <<'APP'\npackage com.example.demo;\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n@SpringBootApplication\npublic class DemoApplication {\n  public static void main(String[] args) { SpringApplication.run(DemoApplication.class, args); }\n}\nAPP\n# Provide a simple ping controller (avoid duplicating actuator /actuator/health)\ncat > src/main/java/com/example/demo/PingController.java <<'CTL'\npackage com.example.demo;\nimport org.springframework.web.bind.annotation.GetMapping;\nimport org.springframework.web.bind.annotation.RestController;\n@RestController\npublic class PingController {\n  @GetMapping(\"/ping\")\n  public String ping() { return \"pong\"; }\n}\nCTL\n# Dev profile using H2\ncat > src/main/resources/application-dev.properties <<'APPPR'\nspring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1\nspring.datasource.driverClassName=org.h2.Driver\nspring.jpa.hibernate.ddl-auto=update\nmanagement.endpoints.web.exposure.include=health\nlogging.level.root=INFO\nAPPPR\n# Console logging\ncat > src/main/resources/logback-spring.xml <<'LOG'\n<configuration>\n  <appender name=\"CONSOLE\" class=\"ch.qos.logback.core.ConsoleAppender\">\n    <encoder>\n      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>\n    </encoder>\n  </appender>\n  <root level=\"INFO\">\n    <appender-ref ref=\"CONSOLE\"/>\n  </root>\n</configuration>\nLOG\n# Minimal test\ncat > src/test/java/com/example/demo/DemoApplicationTests.java <<'TEST'\npackage com.example.demo;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\n@SpringBootTest\nclass DemoApplicationTests {\n  @Test\n  void contextLoads() {}\n}\nTEST\nexit 0\n"
+        }
+      ],
+      "summary": "Created a scaffold script and executed it to create a minimal Spring Boot Maven project in the workspace. The script checks for /etc/profile.d/java_maven.sh and exits if missing. If no pom.xml or .git is present, it generates a pom.xml with dependencies (spring-boot-starter-web, actuator, H2 runtime, spring-boot-starter-test) and spring-boot-maven-plugin, sets java.version to the detected runtime major version (fallback to 17), and creates source files: DemoApplication, PingController (/ping endpoint only), application-dev.properties (H2 dev profile), logback-spring.xml (console logging), and a minimal JUnit test. The scaffold script was written to .init/scaffold.sh and executed successfully. No errors encountered during execution.",
+      "architect_help_request": "",
+      "needs_architect_help": false,
+      "qa_approved": true,
+      "qa_summary": "The engineer created and executed a scaffold script that generated a minimal Spring Boot Maven project with the required dependencies (starter-web, actuator, H2 runtime, spring-boot-starter-test), added the spring-boot-maven-plugin, adjusted java.version to the detected JDK major version (with fallback), and produced DemoApplication, a /ping controller (no /health override), application-dev.properties using H2, logback-spring.xml, and a JUnit test. The script was written to .init/scaffold.sh and ran without errors. Clear evidence of successful project scaffolding and no critical errors were reported, so the step is approved.",
+      "qa_issues": []
+    },
+    {
+      "id": "step_dependencies_test",
+      "name": "Dependencies and unit tests: resolve Maven deps and run JUnit tests",
+      "description": "Run mvn dependency resolution and unit tests non-interactively. On test failure, collect surefire reports and re-run with debug output for diagnostics. Requires step_env_install and step_scaffold_project.",
+      "category": "testing",
+      "script_name": "test",
+      "dependencies": [
+        "step_env_install",
+        "step_scaffold_project"
+      ],
+      "tools_required": [
+        "VisibleShellTools",
+        "ContainerFileTools",
+        "DependencyTools",
+        "ContainerWriteTools"
+      ],
+      "status": "completed",
+      "execution_priority": 5,
+      "privilege_level": "auto",
+      "retry_attempts": 0,
+      "script_code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nif [ ! -r \"$PROFILE\" ]; then echo \"ERROR: $PROFILE missing; run install step\" >&2; exit 2; fi\n# shellcheck disable=SC1090\nsource \"$PROFILE\"\ncd \"$WORKSPACE\"\nif ! command -v mvn >/dev/null 2>&1; then echo \"ERROR: mvn not found\" >&2; exit 3; fi\nmvn -v || true\n# Run tests (non-interactive)\nif ! mvn -B -DskipTests=false test; then\n  echo \"Tests failed; collecting surefire reports...\" >&2\n  ls -la target/surefire-reports || true\n  sed -n '1,200p' target/surefire-reports/*.txt 2>/dev/null || true\n  echo \"Re-running tests with debug output...\" >&2\n  mvn -B -X test || true\n  exit 4\nfi\nexit 0",
+      "output_scripts": [
+        {
+          "name": "test",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nif [ ! -r \"$PROFILE\" ]; then echo \"ERROR: $PROFILE missing; run install step\" >&2; exit 2; fi\n# shellcheck disable=SC1090\nsource \"$PROFILE\"\ncd \"$WORKSPACE\"\nif ! command -v mvn >/dev/null 2>&1; then echo \"ERROR: mvn not found\" >&2; exit 3; fi\nmvn -v || true\n# Run tests (non-interactive)\nif ! mvn -B -DskipTests=false test; then\n  echo \"Tests failed; collecting surefire reports...\" >&2\n  ls -la target/surefire-reports || true\n  sed -n '1,200p' target/surefire-reports/*.txt 2>/dev/null || true\n  echo \"Re-running tests with debug output...\" >&2\n  mvn -B -X test || true\n  exit 4\nfi\nexit 0\n"
+        }
+      ],
+      "summary": "Executed the provided mvn test script in the container workspace. Verified JAVA/Maven environment was sourced via /etc/profile.d/java_maven.sh, then ran Maven tests non-interactively. Maven resolved dependencies (downloaded required BOMs, POMs, and JARs), compiled the project, and executed the JUnit tests. Tests passed and the build completed with BUILD SUCCESS. Collected build observations including a warning about test configuration class detection and a missing src/test/resources directory (non-fatal).",
+      "architect_help_request": "",
+      "needs_architect_help": false,
+      "qa_approved": true,
+      "qa_summary": "Confirmed mvn tests were run non-interactively, dependencies were resolved, project compiled, and JUnit tests passed with BUILD SUCCESS. No critical errors or security issues reported; only non-fatal warnings about test configuration detection and a missing src/test/resources directory were noted.",
+      "qa_issues": [
+        "Minor warning: test configuration class detection warning reported (non-fatal).",
+        "Minor observation: missing src/test/resources directory (non-fatal)."
+      ]
+    },
+    {
+      "id": "step_validation_build_run",
+      "name": "Validation: package, start, health-check, stop (build+run)",
+      "description": "Build the application with Maven (skip tests previously run), select runnable jar (spring-boot-maven-plugin ensures one), start java directly capturing the java PID, poll /actuator/health until OK (HTTP 200), and stop the java process cleanly using trap to avoid orphaning. Print logs on failure. This step verifies the end-to-end dev environment and that the app responds on 0.0.0.0:8080.",
+      "category": "validation",
+      "script_name": "validation",
+      "dependencies": [
+        "step_env_install",
+        "step_scaffold_project",
+        "step_dependencies_test"
+      ],
+      "tools_required": [
+        "VisibleShellTools",
+        "ContainerFileTools",
+        "DependencyTools",
+        "ContainerWriteTools"
+      ],
+      "status": "completed",
+      "execution_priority": 7,
+      "privilege_level": "auto",
+      "retry_attempts": 0,
+      "script_code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nif [ ! -r \"$PROFILE\" ]; then echo \"ERROR: $PROFILE missing; run install step\" >&2; exit 2; fi\n# shellcheck disable=SC1090\nsource \"$PROFILE\"\ncd \"$WORKSPACE\"\nif ! command -v mvn >/dev/null 2>&1; then echo \"ERROR: mvn not available\" >&2; exit 3; fi\n# Build (skip tests)\nmvn -B -DskipTests package\n# Find runnable jar (spring-boot-maven-plugin produces one executable jar in target)\nJAR=$(ls -1 target/*jar 2>/dev/null | grep -v \"-original\" | head -n1 || true)\nif [ -z \"$JAR\" ]; then echo \"ERROR: no jar found in target\" >&2; ls -la target || true; exit 4; fi\n# Start app directly and capture PID\nLOG_OUT=/tmp/app_stdout.log\nLOG_ERR=/tmp/app_stderr.log\nJAVA_OPTS=\"-Xmx512m -Dserver.address=0.0.0.0 -Dserver.port=8080 -Dspring.profiles.active=dev\"\njava $JAVA_OPTS -jar \"$JAR\" >\"$LOG_OUT\" 2>\"$LOG_ERR\" &\nAPP_PID=$!\ncleanup(){\n  if ps -p \"$APP_PID\" >/dev/null 2>&1; then kill \"$APP_PID\" || true; sleep 1; fi\n}\ntrap cleanup EXIT\n# Wait for process to start\nsleep 1\nif ! ps -p \"$APP_PID\" -o comm= >/dev/null 2>&1; then\n  echo \"ERROR: launched PID $APP_PID not running; printing logs\" >&2\n  echo \"--- stdout ---\"; tail -n +1 \"$LOG_OUT\" || true\n  echo \"--- stderr ---\"; tail -n +1 \"$LOG_ERR\" || true\n  exit 5\nfi\n# Poll health endpoint\nHEALTH_URL=\"http://127.0.0.1:8080/actuator/health\"\nMAX_ATTEMPTS=20\nSLEEP=1\nOK=false\nfor i in $(seq 1 $MAX_ATTEMPTS); do\n  if command -v curl >/dev/null 2>&1; then\n    code=$(curl -sS -o /dev/null -w \"%{http_code}\" --max-time 2 \"$HEALTH_URL\" || echo 000)\n  else\n    wget -q --tries=1 --timeout=2 -O /dev/null \"$HEALTH_URL\" && code=200 || code=000\n  fi\n  if [ \"$code\" = \"200\" ]; then OK=true; break; fi\n  sleep $SLEEP\ndone\nif ! $OK; then\n  echo \"ERROR: healthcheck failed after $((MAX_ATTEMPTS*SLEEP))s\" >&2\n  echo \"--- stdout ---\"; tail -n +1 \"$LOG_OUT\" || true\n  echo \"--- stderr ---\"; tail -n +1 \"$LOG_ERR\" || true\n  exit 6\nfi\necho \"validation: app responded with HTTP 200 at $HEALTH_URL\"\n# Clean up explicitly (trap will also run)\ncleanup\n# Inform how to expose port externally\necho \"To expose 8080 externally map the container port (e.g. docker run -p 8080:8080 ...) or configure your runtime to forward host port 8080.\"\nexit 0",
+      "output_scripts": [
+        {
+          "name": "build",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nif [ ! -r \"$PROFILE\" ]; then echo \"ERROR: $PROFILE missing; run install step\" >&2; exit 2; fi\n# shellcheck disable=SC1090\nsource \"$PROFILE\"\ncd \"$WORKSPACE\"\nif ! command -v mvn >/dev/null 2>&1; then echo \"ERROR: mvn not available\" >&2; exit 3; fi\nmvn -B -DskipTests package\n"
+        },
+        {
+          "name": "start",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nif [ ! -r \"$PROFILE\" ]; then echo \"ERROR: $PROFILE missing; run install step\" >&2; exit 2; fi\n# shellcheck disable=SC1090\nsource \"$PROFILE\"\ncd \"$WORKSPACE\"\nJAR=$(ls -1 target/*jar 2>/dev/null | grep -v \"-original\" | head -n1 || true)\nif [ -z \"$JAR\" ]; then echo \"ERROR: no jar found in target\" >&2; ls -la target || true; exit 4; fi\nLOG_OUT=/tmp/app_stdout.log\nLOG_ERR=/tmp/app_stderr.log\nJAVA_OPTS=\"-Xmx512m -Dserver.address=0.0.0.0 -Dserver.port=8080 -Dspring.profiles.active=dev\"\njava $JAVA_OPTS -jar \"$JAR\" >\"$LOG_OUT\" 2>\"$LOG_ERR\" &\nAPP_PID=$!\necho \"$APP_PID\" >/tmp/app_pid.txt\n# Provide cleanup function for safe stop\ncleanup(){\n  if ps -p \"$APP_PID\" >/dev/null 2>&1; then kill \"$APP_PID\" || true; sleep 1; fi\n}\ntrap cleanup EXIT\n# Give a moment to start\nsleep 1\nif ! ps -p \"$APP_PID\" -o comm= >/dev/null 2>&1; then\n  echo \"ERROR: launched PID $APP_PID not running; printing logs\" >&2\n  echo \"--- stdout ---\"; tail -n +1 \"$LOG_OUT\" || true\n  echo \"--- stderr ---\"; tail -n +1 \"$LOG_ERR\" || true\n  exit 5\nfi\n# leave process running; the validation script will poll and stop it\necho \"started:$APP_PID\"\n"
+        },
+        {
+          "name": "stop",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nPID_FILE=/tmp/app_pid.txt\nif [ ! -r \"$PID_FILE\" ]; then echo \"ERROR: pid file missing\" >&2; exit 2; fi\nAPP_PID=$(cat \"$PID_FILE\" 2>/dev/null || true)\nif [ -z \"$APP_PID\" ]; then echo \"ERROR: pid file empty\" >&2; exit 3; fi\nif ps -p \"$APP_PID\" >/dev/null 2>&1; then\n  kill \"$APP_PID\" || true\n  for i in {1..10}; do\n    if ! ps -p \"$APP_PID\" >/dev/null 2>&1; then break; fi\n    sleep 1\n  done\n  if ps -p \"$APP_PID\" >/dev/null 2>&1; then\n    echo \"WARN: process did not exit; sending SIGKILL\" >&2\n    kill -9 \"$APP_PID\" || true\n  fi\nfi\nrm -f \"$PID_FILE\" || true\n"
+        },
+        {
+          "name": "validation",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nWORKSPACE=\"/home/kavia/workspace/code-generation/uttar-pradesh-tourism-infrastructure-management-system-40508-40517/infrastructure_backend\"\nPROFILE=\"/etc/profile.d/java_maven.sh\"\nif [ ! -r \"$PROFILE\" ]; then echo \"ERROR: $PROFILE missing; run install step\" >&2; exit 2; fi\n# shellcheck disable=SC1090\nsource \"$PROFILE\"\ncd \"$WORKSPACE\"\nif ! command -v mvn >/dev/null 2>&1; then echo \"ERROR: mvn not available\" >&2; exit 3; fi\n# Build (skip tests)\nmvn -B -DskipTests package\n# Find runnable jar (spring-boot-maven-plugin produces one executable jar in target)\nJAR=$(ls -1 target/*jar 2>/dev/null | grep -v \"-original\" | head -n1 || true)\nif [ -z \"$JAR\" ]; then echo \"ERROR: no jar found in target\" >&2; ls -la target || true; exit 4; fi\n# Start app directly and capture PID\nLOG_OUT=/tmp/app_stdout.log\nLOG_ERR=/tmp/app_stderr.log\nJAVA_OPTS=\"-Xmx512m -Dserver.address=0.0.0.0 -Dserver.port=8080 -Dspring.profiles.active=dev\"\njava $JAVA_OPTS -jar \"$JAR\" >\"$LOG_OUT\" 2>\"$LOG_ERR\" &\nAPP_PID=$!\n# ensure pid record for stop script\necho \"$APP_PID\" >/tmp/app_pid.txt\ncleanup(){\n  if ps -p \"$APP_PID\" >/dev/null 2>&1; then kill \"$APP_PID\" || true; sleep 1; fi\n}\ntrap cleanup EXIT\n# Wait a short while for JVM to initialize\nsleep 1\nif ! ps -p \"$APP_PID\" -o comm= >/dev/null 2>&1; then\n  echo \"ERROR: launched PID $APP_PID not running; printing logs\" >&2\n  echo \"--- stdout ---\"; tail -n +1 \"$LOG_OUT\" || true\n  echo \"--- stderr ---\"; tail -n +1 \"$LOG_ERR\" || true\n  exit 5\nfi\n# Poll health endpoint\nHEALTH_URL=\"http://127.0.0.1:8080/actuator/health\"\nMAX_ATTEMPTS=20\nSLEEP=1\nOK=false\nfor i in $(seq 1 $MAX_ATTEMPTS); do\n  if command -v curl >/dev/null 2>&1; then\n    code=$(curl -sS -o /dev/null -w \"%{http_code}\" --max-time 2 \"$HEALTH_URL\" || echo 000)\n  else\n    wget -q --tries=1 --timeout=2 -O /dev/null \"$HEALTH_URL\" && code=200 || code=000\n  fi\n  if [ \"$code\" = \"200\" ]; then OK=true; break; fi\n  sleep $SLEEP\ndone\nif ! $OK; then\n  echo \"ERROR: healthcheck failed after $((MAX_ATTEMPTS*SLEEP))s\" >&2\n  echo \"--- stdout ---\"; tail -n +1 \"$LOG_OUT\" || true\n  echo \"--- stderr ---\"; tail -n +1 \"$LOG_ERR\" || true\n  cleanup\n  exit 6\nfi\necho \"validation: app responded with HTTP 200 at $HEALTH_URL\"\n# Clean up explicitly (trap will also run)\ncleanup\nexit 0\n"
+        }
+      ],
+      "summary": "Executed validation step: created a small set of executable scripts that implement the provided validation flow. The scripts perform: (1) build (mvn -DskipTests package) in the workspace, (2) start the produced runnable Spring Boot jar with JVM options and capture the PID, (3) poll /actuator/health until HTTP 200, (4) stop the Java process cleanly and print logs on failure. Scripts follow required structure (shebang, set -euo pipefail), use the container workspace path, are idempotent where applicable, and write/read logs from /tmp. They assume the environment profile /etc/profile.d/java_maven.sh exists (the provided architect script checks for it). I did not modify environment installation or scaffolding here \u2014 this step depends on prior steps (env install, scaffold, tests). No architect intervention required.",
+      "architect_help_request": "",
+      "needs_architect_help": false,
+      "qa_approved": true,
+      "qa_summary": "Engineer executed the validation step and provided a clear summary: build (mvn -DskipTests package), start the runnable Spring Boot jar capturing PID, poll /actuator/health until HTTP 200, and stop the process cleanly while printing logs on failure. Scripts follow required structure and use the container workspace; no critical errors or security issues were reported. The core objective \u2014 end-to-end build, run, health-check, and clean shutdown \u2014 is reported as completed.",
+      "qa_issues": []
+    }
+  ],
+  "dependencies": [
+    "openjdk-17-jdk (or system java >= 17)",
+    "maven",
+    "git",
+    "curl",
+    "wget",
+    "unzip"
+  ],
+  "reasoning": "Apply minimal, idempotent in-container setup that respects the image baseline, avoids unnecessary reinstalls, and fixes reliability issues reported by the analyst. Use Maven as the single build tool and target Java >=17 while accepting newer JDKs already present. Environment step now probes existing java/mvn/unzip and only installs missing packages. /etc/profile.d write is atomic, permission-safe (mode 0644), and PATH line quoting is correct. Scaffolding creates a minimal Spring Boot Maven project only when no pom.xml is present; it removes the redundant /health controller (uses actuator /actuator/health), pins spring-boot parent but also adds explicit spring-boot-maven-plugin to guarantee executable jar packaging, and adapts <java.version> to runtime major version. Testing collects surefire reports on failure to aid debugging. Validation reliably starts java in background capturing the direct java PID (APP_PID=$!) and uses a trap to ensure cleanup; health polling checks /actuator/health and expects HTTP 200. Added an optional check to detect mounted repository (presence of .git or pom.xml) and will not scaffold if user code is present. These changes address CRITICAL and HIGH feedback items: avoid unnecessary installs, fix PATH quoting, write /etc/profile.d atomically and with safe perms, guarantee executable jar creation via plugin, avoid duplicate /health endpoint, and reliably start/stop the java process with proper PID handling and cleanup. Medium/low recommendations (collecting surefire logs, skip reinstall of unzip) are implemented. The plan preserves original step ids but adjusts scripts to be robust and idempotent.",
+  "change_logs": [
+    {
+      "timestamp": "2025-11-05T07:18:29.214503",
+      "message": "initial version",
+      "change_type": "initial",
+      "source": "devops_architect"
+    },
+    {
+      "timestamp": "2025-11-05T07:20:22.386539",
+      "message": "Refined initial plan to address analyst feedback: modified step_env_install to detect existing java/mvn, compute JAVA_HOME dynamically, avoid masking apt failures, and export JAVA_TOOL_OPTIONS/MAVEN_OPTS; updated step_scaffold_project to add spring-boot-starter-actuator, remove spring.profiles.active from application-dev.properties, and create a proper /health actuator config; improved step_dependencies_test to fail-fast and report mvn version on error; enhanced step_validation_build_run to use robust jar detection (ls target/*.jar), bind the server to 0.0.0.0:8080, pass Docker-friendly JVM options, poll health endpoint with retries, and present logs on failure. These changes address critical and high-priority issues (actuator, JAVA_HOME detection, avoiding masked failures, robust startup/health checks, jar detection, and container binding).",
+      "change_type": "refinement",
+      "source": "devops_architect"
+    },
+    {
+      "timestamp": "2025-11-05T07:22:16.859740",
+      "message": "Refined plan addressing analyst feedback: fixed broken /etc/profile.d writing and made it atomic and idempotent (modified step_env_install). Implemented robust java version extraction and numeric major parsing; accept >=17 and respect newer JDKs (step_env_install). Added idempotent overwrite and content comparison for /etc/profile.d file and explicit sudo checks (step_env_install). In scaffolding (step_scaffold_project) added a runtime check that compares installed JAVA major with pom <java.version> and adjusts/warns to avoid compile errors. In testing (step_dependencies_test) removed -q to retain diagnostics and added a fallback verbose rerun on failure. In validation (step_validation_build_run) improved jar selection by inspecting MANIFEST.MF for Start-Class and preferring largest non-original jar if needed; verified APP_PID is a java process after launch; ensured clear failure logs and printed a note about docker run -p 8080:8080 on success. Also added unzip to dependencies to allow manifest inspection. These changes address CRITICAL and HIGH items from the analyst (broken profile write, fragile version parsing, respect newer JDK, test verbosity, jar selection, PID verification, idempotency and explicit file existence checks).",
+      "change_type": "refinement",
+      "source": "devops_architect"
+    },
+    {
+      "timestamp": "2025-11-05T07:23:55.561115",
+      "message": "Refined steps to address analyst feedback: Modified step_env_install to detect existing java/mvn/unzip and install only if absent; fixed PATH quoting bug; implemented atomic, sudo-safe write to /etc/profile.d with mode 0644; avoided sourcing assumptions by sourcing for immediate effect but noting persistence via /etc/profile.d. Modified step_scaffold_project to avoid duplicate /health controller (renamed to /ping), added explicit spring-boot-maven-plugin to pom.xml to guarantee a runnable fat jar, and adapt <java.version> to installed JDK major. Modified step_dependencies_test to collect surefire reports when tests fail. Modified step_validation_build_run to start java directly (capturing APP_PID=$!), add trap-based cleanup, and verify/stop the actual java PID to avoid orphaned processes. Added check to prefer mounted source (pom.xml or .git) over scaffolding. These changes fix critical issues (prevent unnecessary reinstalls, PATH bug, unreliable process management) and high items (atomic profile write, plugin for runnable jar, duplicate endpoint). Steps modified: step_env_install, step_scaffold_project, step_dependencies_test, step_validation_build_run.",
+      "change_type": "refinement",
+      "source": "devops_architect"
+    }
+  ],
+  "qa_approved": false,
+  "qa_summary": "",
+  "qa_issues": [],
+  "qa_recommendations": []
+}
